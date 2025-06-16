@@ -5,6 +5,46 @@ import random
 import numpy as np
 import xgboost as xgb
 import sklearn.metrics as mt
+from socceraction.vaep import features as ft
+from socceraction.vaep import labels as lab
+from socceraction.vaep import formula as fm
+import os
+import pandas as pd
+from webscraping import get_data_by_league
+from io_utils import save_players_merged
+
+def prepare_players_data(data_path, player_data):
+    scrapped_path = os.path.join(data_path, "players_scrapped.csv")
+    merged_path = os.path.join(data_path, "players_merged.csv")
+
+    if os.path.exists(scrapped_path) and os.path.exists(merged_path):
+        print("Arquivos já existem. Pulando scraping e merge.")
+        return pd.read_csv(merged_path)
+
+    if not os.path.exists(scrapped_path):
+        print("Realizando scraping e merge por liga...")
+        all_players = []
+        for league, league_infos in player_data.items():
+            print(f"→ {league}")
+            # Scrape múltiplas tabelas por liga
+            dfs = get_data_by_league(league_infos)  # deve retornar lista de DataFrames
+            if isinstance(dfs, list):
+                merged = reduce(lambda left, right: pd.merge(left, right, on='Player', how='inner'), dfs)
+            else:
+                merged = dfs
+            merged['League'] = league
+            all_players.append(merged)
+
+        enhanced_players = pd.concat(all_players, ignore_index=True)
+        enhanced_players.to_csv(scrapped_path, index=False)
+        print("Salvou players_scrapped.csv")
+
+    print("Realizando merge final com players.json...")
+    players_merged = save_players_merged(data_path)
+    players_merged.to_csv(merged_path, index=False)
+    print("Salvou players_merged.csv")
+
+    return players_merged
 
 def spadl_transform(events, matches):
     spadl = []
