@@ -6,6 +6,10 @@ import numpy as np
 import xgboost as xgb
 import sklearn.metrics as mt
 
+from socceraction.vaep import features as ft
+from socceraction.vaep import labels as lab
+from socceraction.vaep import formula as fm
+
 def spadl_transform(events, matches):
     spadl = []
     game_ids = events.game_id.unique().tolist()

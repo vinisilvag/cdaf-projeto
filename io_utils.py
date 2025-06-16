@@ -31,8 +31,10 @@ def load_matches(path):
     return team_matches
 
 def load_players(path):
-    players = pd.read_csv(path + "players_merged.csv")
-    return players
+    players = pd.read_json(path + "players.json")
+    players['player_name'] = players['firstName'] + ' ' + players['lastName']
+    renamed_players = players.rename(columns={'wyId': 'player_id'})
+    return renamed_players
 
 def load_events(path):
     events = pd.read_json(path_or_buf=path)
