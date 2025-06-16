@@ -19,17 +19,17 @@ def get_interactions(actions, game_id, player_before, player_after):
     
     game_actions = actions[actions['game_id'] == game_id]
     filtered = game_actions[game_actions['type_name'].isin(desired_actions)]
-    sorted_data = filtered.sort_values(by=['period_id', 'time_seconds']).reset_index(drop=True)
+    # sorted_data = filtered.sort_values(by=['period_id', 'time_seconds']).reset_index(drop=True)
     
     interactions = []
     
-    for i in range(len(sorted_data) - 1):
-        current_action = sorted_data.iloc[i]
-        next_action = sorted_data.iloc[i + 1]
+    for i in range(len(filtered) - 1):
+        current_action = filtered.iloc[i]
+        next_action = filtered.iloc[i + 1]
         if (current_action["player_id"] == player_before) and (next_action["player_id"] == player_after):
             interactions.append((current_action, next_action))        
     
-    return interations
+    return interactions
 
 def joint_offensive_impact(actions, game_id, p, q):
     interactions = get_interactions(actions, game_id, p, q)
