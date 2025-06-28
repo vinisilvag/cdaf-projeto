@@ -15,8 +15,8 @@ def extended_vaep(interaction):
     return current_action["vaep_value"] + next_action["vaep_value"]
 
 def get_interactions(actions, game_id, player_before, player_after):
-    desired_actions = ['pass', 'cross', 'dribble', 'take-on', 'shot']
-    
+    desired_actions = ['receival', 'pass', 'cross', 'dribble', 'take-on', 'shot']
+
     game_actions = actions[actions['game_id'] == game_id]
     filtered = game_actions[game_actions['type_name'].isin(desired_actions)]
     # sorted_data = filtered.sort_values(by=['period_id', 'time_seconds']).reset_index(drop=True)
@@ -44,6 +44,28 @@ def joint_offensive_impact(actions, game_id, p, q):
         interactions_reverse_sum += extended_vaep(i)
     
     return interactions_sum + interactions_reverse_sum
+
+def calculate_joi90(actions, minutes_df, player1_id, player2_id):
+    df_filtered = actions[actions['player_id'].isin([player1_id, player2_id])]
+    games_with_x_and_y = (
+        df_filtered.groupby('game_id')['player_id']
+        .apply(lambda x: set([player1_id, player2_id]).issubset(set(x)))
+    )
+    selected_games = games_with_x_and_y[games_with_x_and_y].index
+    result = actions[actions['game_id'].isin(selected_games)]
+    game_ids = result['game_id'].unique().tolist()
+
+    total_joi = 0
+    total_minutes = 0
+
+    for game_id in tqdm(game_ids):
+        joi_match = joint_offensive_impact(actions, game_id, player1_id, player2_id)
+        minutes = minutes_df[minutes_df['game_id'] == game_id]['minutes_played'].min()
+        if minutes:
+            total_joi += joi_match
+            total_minutes += minutes
+
+    return (total_joi * 90) / total_minutes if total_minutes else 0
 
 def actual_offensive_impact(actions, player_id, game_id):
     offensive_actions = ['pass', 'cross', 'dribble', 'take-on', 'shot']
