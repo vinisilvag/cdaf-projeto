@@ -151,14 +151,18 @@ def calculate_jdi90(actions, minutes_df, player1_id, player2_id, game_ids, playe
     total_minutes = 0
 
     for gid in game_ids:
-        jdi_match = joint_defensive_impact(actions, minutes_df, player1_id, player2_id, gid, player_positions)
         minutes = minutes_df[
             (minutes_df['player_id'].isin([player1_id, player2_id])) &
             (minutes_df['game_id'] == gid)
         ]['minutes_played'].min()
+        
         if minutes > 0:
             print(minutes)
-            total_jdi += jdi_match
             total_minutes += minutes
+        else:
+            continue
+        
+        jdi_match = joint_defensive_impact(actions, minutes_df, player1_id, player2_id, gid, player_positions)
+        total_jdi += jdi_match
 
     return (total_jdi * 90) / total_minutes if total_minutes else 0
