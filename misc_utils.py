@@ -1,13 +1,14 @@
 import pandas as pd
 import socceraction.spadl as spd
+import socceraction.atomic.spadl as atomic_spd
 from tqdm import tqdm
 import random
 import numpy as np
 import xgboost as xgb
 import sklearn.metrics as mt
-from socceraction.vaep import features as ft
-from socceraction.vaep import labels as lab
-from socceraction.vaep import formula as fm
+from socceraction.atomic.vaep import features as ft
+from socceraction.atomic.vaep import labels as lab
+from socceraction.atomic.vaep import formula as fm
 import os
 import pandas as pd
 from webscraping import get_data_by_league
@@ -46,18 +47,19 @@ def prepare_players_data(data_path, player_data):
 
     return players_merged
 
-def spadl_transform(events, matches):
-    spadl = []
+def atomic_spadl_transform(events, matches):
+    atomic_spadl = []
     game_ids = events.game_id.unique().tolist()
     for g in tqdm(game_ids):
         match_events = events.loc[events.game_id == g]
         match_home_id = matches.loc[(matches.matchId == g) & (matches.side == 'home'), 'teamId'].values[0]
         match_actions = spd.wyscout.convert_to_actions(events=match_events, home_team_id=match_home_id)
-        match_actions = spd.play_left_to_right(actions=match_actions, home_team_id=match_home_id)
-        match_actions = spd.add_names(match_actions)
-        spadl.append(match_actions)
-    spadl = pd.concat(spadl).reset_index(drop=True)
-    return spadl
+        match_actions = atomic_spd.convert_to_atomic(match_actions)
+        match_actions = atomic_spd.play_left_to_right(actions=match_actions, home_team_id=match_home_id)
+        match_actions = atomic_spd.add_names(match_actions)
+        atomic_spadl.append(match_actions)
+    atomic_spadl = pd.concat(atomic_spadl).reset_index(drop=True)
+    return atomic_spadl
 
 def select_random_games(spadl_dict):
     """
@@ -70,19 +72,13 @@ def select_random_games(spadl_dict):
     }
     
 def features_transform(spadl):
-    spadl.loc[spadl.result_id.isin([2, 3]), ['result_id']] = 0
-    spadl.loc[spadl.result_name.isin(['offside', 'owngoal']), ['result_name']] = 'fail'
-
     xfns = [
         ft.actiontype_onehot,
-        ft.bodypart_onehot,
-        ft.result_onehot,
+        ft.direction,
         ft.goalscore,
-        ft.startlocation,
-        ft.endlocation,
-        ft.team,
-        ft.time,
-        ft.time_delta
+        ft.location,
+        ft.movement_polar,
+        ft.polar,
     ]
 
     features = []
@@ -143,7 +139,7 @@ def generate_predictions(features, models):
 def calculate_action_values(spadl, predictions):
     action_values = fm.value(actions=spadl, Pscores=predictions['scores'], Pconcedes=predictions['concedes'])
     action_values = pd.concat([
-        spadl[['original_event_id', 'action_id', 'game_id', 'start_x', 'start_y', 'end_x', 'end_y', 'type_name', 'result_name', 'player_id',]],
+        spadl[['original_event_id', 'action_id', 'game_id', 'x', 'y', 'dx', 'dy', 'type_name', 'player_id',]],
         predictions.rename(columns={'scores': 'Pscores', 'concedes': 'Pconcedes'}),
         action_values
     ], axis=1)
