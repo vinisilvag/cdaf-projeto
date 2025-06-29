@@ -92,12 +92,35 @@ def expected_offensive_impact(actions, player_id, current_game_id, minutes_df):
 
 def responsibility_share(player1_pos, player2_pos, opponent_pos):
     position_map = {
-        'CB': (2, 1), 'RB': (4, 1), 'LB': (0, 1), 'DM': (2, 2),
-        'CM': (2, 3), 'RW': (4, 4), 'LW': (0, 4), 'ST': (2, 4),
+        'GK': (2, 0),
+        'RB': (4, 1), 'RWB': (4, 2),
+        'CB': (2, 1),
+        'LB': (0, 1), 'LWB': (0, 2),
+        'CDM': (2, 2), 'DM': (2, 2),
+        'CM': (2, 3),
+        'CAM': (2, 3.5),
+        'RM': (4, 3), 'LM': (0, 3),
+        'RW': (4, 4), 'LW': (0, 4),
+        'SS': (2, 4.25),
+        'CF': (2, 4.5),
+        'ST': (2, 5),
+        'Defender': (2, 1), 'Midfielder': (2, 3), 'Forward': (2, 5)
     }
-    dist1 = euclidean(position_map[player1_pos], position_map[opponent_pos])
-    dist2 = euclidean(position_map[player2_pos], position_map[opponent_pos])
-    return (1/(dist1+1e-5) + 1/(dist2+1e-5)) / 2
+
+    def extract_pos(pos):
+        if isinstance(pos, dict):
+            return pos.get("name", "CB")
+        return pos
+
+    default_pos = (2, 2)
+    pos1 = position_map.get(extract_pos(player1_pos), default_pos)
+    pos2 = position_map.get(extract_pos(player2_pos), default_pos)
+    opp = position_map.get(extract_pos(opponent_pos), default_pos)
+
+    dist1 = euclidean(pos1, opp)
+    dist2 = euclidean(pos2, opp)
+
+    return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
 
 def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id, player_positions):
     opponents = actions[(actions['game_id'] == game_id)]['player_id'].unique()
@@ -133,7 +156,8 @@ def calculate_jdi90(actions, minutes_df, player1_id, player2_id, game_ids, playe
             (minutes_df['player_id'].isin([player1_id, player2_id])) &
             (minutes_df['game_id'] == gid)
         ]['minutes_played'].min()
-        if minutes:
+        if minutes > 0:
+            print(minutes)
             total_jdi += jdi_match
             total_minutes += minutes
 
