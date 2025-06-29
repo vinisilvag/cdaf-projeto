@@ -78,7 +78,7 @@ def responsibility_share(player1_pos, player2_pos, opponent_pos):
     return (1/(dist1+1e-5) + 1/(dist2+1e-5)) / 2
 
 def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id, player_positions):
-    opponents = actions[(actions['gameId'] == game_id)]['playerId'].unique()
+    opponents = actions[(actions['game_id'] == game_id)]['player_id'].unique()
     jdi = 0
 
     for opponent_id in opponents:
