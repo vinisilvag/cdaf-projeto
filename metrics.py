@@ -9,6 +9,7 @@ import numpy as np
 import xgboost as xgb
 import sklearn.metrics as mt
 from scipy.spatial.distance import euclidean
+from ast import literal_eval
 
 def extended_vaep(interaction):
     current_action, next_action = interaction
@@ -92,34 +93,65 @@ def expected_offensive_impact(actions, player_id, current_game_id, minutes_df):
 
 def responsibility_share(player1_pos, player2_pos, opponent_pos):
     position_map = {
-        'CB': (2, 1), 'RB': (4, 1), 'LB': (0, 1), 'DM': (2, 2),
-        'CM': (2, 3), 'RW': (4, 4), 'LW': (0, 4), 'ST': (2, 4),
+        'GK': (2, 0),
+        'RB': (4, 1), 'RWB': (4, 2),
+        'CB': (2, 1),
+        'LB': (0, 1), 'LWB': (0, 2),
+        'CDM': (2, 2), 'DM': (2, 2),
+        'CM': (2, 3),
+        'CAM': (2, 3.5),
+        'RM': (4, 3), 'LM': (0, 3),
+        'RW': (4, 4), 'LW': (0, 4),
+        'SS': (2, 4.25),
+        'CF': (2, 4.5),
+        'ST': (2, 5),
+        'DF': (2, 1), 'MD': (2, 3), 'FW': (2, 5)
     }
-    dist1 = euclidean(position_map[player1_pos], position_map[opponent_pos])
-    dist2 = euclidean(position_map[player2_pos], position_map[opponent_pos])
-    return (1/(dist1+1e-5) + 1/(dist2+1e-5)) / 2
+
+    default_pos = (2, 2)
+    pos1 = position_map.get(player1_pos, default_pos)
+    pos2 = position_map.get(player2_pos, default_pos)
+    opp = position_map.get(opponent_pos, default_pos)
+
+    dist1 = max(euclidean(pos1, opp), 0.1)
+    dist2 = max(euclidean(pos2, opp), 0.1)
+
+    return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
 
 def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id, player_positions):
     opponents = actions[(actions['game_id'] == game_id)]['player_id'].unique()
     jdi = 0
 
     for opponent_id in opponents:
+        opponent_minutes = minutes_df[
+            (minutes_df['player_id'] == opponent_id) & (minutes_df['game_id'] == game_id)
+        ]['minutes_played'].sum()
+
+        if opponent_minutes == 0:
+            continue
+        if(player1_id == opponent_id or player2_id == opponent_id):
+            continue
+        
         actual_oi = actual_offensive_impact(actions, opponent_id, game_id)
         expected_oi = expected_offensive_impact(actions, opponent_id, game_id, minutes_df)
         diff = expected_oi - actual_oi
+          
+        pos1 = literal_eval(player_positions.get(player1_id))['code2']
+        pos2 = literal_eval(player_positions.get(player2_id))['code2']
+        if (player_positions.get(opponent_id) == None):
+            opponent_pos = None
+        else:
+            opponent_pos = literal_eval(player_positions.get(opponent_id))['code2']
         
-        pos1 = player_positions.get(player1_id, 'CB')
-        pos2 = player_positions.get(player2_id, 'CB')
-        opponent_pos = player_positions.get(opponent_id, 'ST')
 
         resp = responsibility_share(pos1, pos2, opponent_pos)
 
-        shared_minutes = minutes_df[
-            (minutes_df['player_id'].isin([player1_id, player2_id, opponent_id])) &
-            (minutes_df['game_id'] == game_id)
-        ]['minutes_played'].min()  # minutos em comum
+        #shared_minutes = minutes_df[
+        #    (minutes_df['player_id'].isin([player1_id, player2_id, opponent_id])) &
+        #    (minutes_df['game_id'] == game_id)
+        #]['minutes_played'].min()  # minutos em comum
 
-        jdi += diff * resp * (90 / shared_minutes if shared_minutes else 0)
+        jdi += diff * resp
 
     return jdi
 
@@ -128,13 +160,22 @@ def calculate_jdi90(actions, minutes_df, player1_id, player2_id, game_ids, playe
     total_minutes = 0
 
     for gid in game_ids:
-        jdi_match = joint_defensive_impact(actions, minutes_df, player1_id, player2_id, gid, player_positions)
         minutes = minutes_df[
             (minutes_df['player_id'].isin([player1_id, player2_id])) &
             (minutes_df['game_id'] == gid)
-        ]['minutes_played'].min()
-        if minutes:
-            total_jdi += jdi_match
+        ]['minutes_played']
+        
+        if len(minutes) < 2:
+            continue
+
+        minutes = minutes.min()
+        
+        if minutes > 0:
             total_minutes += minutes
+        else:
+            continue
+        
+        jdi_match = joint_defensive_impact(actions, minutes_df, player1_id, player2_id, gid, player_positions)
+        total_jdi += jdi_match
 
     return (total_jdi * 90) / total_minutes if total_minutes else 0
