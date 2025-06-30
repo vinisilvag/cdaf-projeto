@@ -9,6 +9,7 @@ import numpy as np
 import xgboost as xgb
 import sklearn.metrics as mt
 from scipy.spatial.distance import euclidean
+from ast import literal_eval
 
 def extended_vaep(interaction):
     current_action, next_action = interaction
@@ -104,21 +105,16 @@ def responsibility_share(player1_pos, player2_pos, opponent_pos):
         'SS': (2, 4.25),
         'CF': (2, 4.5),
         'ST': (2, 5),
-        'Defender': (2, 1), 'Midfielder': (2, 3), 'Forward': (2, 5)
+        'DF': (2, 1), 'MD': (2, 3), 'FW': (2, 5)
     }
 
-    def extract_pos(pos):
-        if isinstance(pos, dict):
-            return pos.get("name", "CB")
-        return pos
-
     default_pos = (2, 2)
-    pos1 = position_map.get(extract_pos(player1_pos), default_pos)
-    pos2 = position_map.get(extract_pos(player2_pos), default_pos)
-    opp = position_map.get(extract_pos(opponent_pos), default_pos)
+    pos1 = position_map.get(player1_pos, default_pos)
+    pos2 = position_map.get(player2_pos, default_pos)
+    opp = position_map.get(opponent_pos, default_pos)
 
-    dist1 = euclidean(pos1, opp)
-    dist2 = euclidean(pos2, opp)
+    dist1 = max(euclidean(pos1, opp), 0.1)
+    dist2 = max(euclidean(pos2, opp), 0.1)
 
     return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
 
@@ -127,22 +123,35 @@ def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id,
     jdi = 0
 
     for opponent_id in opponents:
+        opponent_minutes = minutes_df[
+            (minutes_df['player_id'] == opponent_id) & (minutes_df['game_id'] == game_id)
+        ]['minutes_played'].sum()
+
+        if opponent_minutes == 0:
+            continue
+        if(player1_id == opponent_id or player2_id == opponent_id):
+            continue
+        
         actual_oi = actual_offensive_impact(actions, opponent_id, game_id)
         expected_oi = expected_offensive_impact(actions, opponent_id, game_id, minutes_df)
         diff = expected_oi - actual_oi
+          
+        pos1 = literal_eval(player_positions.get(player1_id))['code2']
+        pos2 = literal_eval(player_positions.get(player2_id))['code2']
+        if (player_positions.get(opponent_id) == None):
+            opponent_pos = None
+        else:
+            opponent_pos = literal_eval(player_positions.get(opponent_id))['code2']
         
-        pos1 = player_positions.get(player1_id, 'CB')
-        pos2 = player_positions.get(player2_id, 'CB')
-        opponent_pos = player_positions.get(opponent_id, 'ST')
 
         resp = responsibility_share(pos1, pos2, opponent_pos)
 
-        shared_minutes = minutes_df[
-            (minutes_df['player_id'].isin([player1_id, player2_id, opponent_id])) &
-            (minutes_df['game_id'] == game_id)
-        ]['minutes_played'].min()  # minutos em comum
+        #shared_minutes = minutes_df[
+        #    (minutes_df['player_id'].isin([player1_id, player2_id, opponent_id])) &
+        #    (minutes_df['game_id'] == game_id)
+        #]['minutes_played'].min()  # minutos em comum
 
-        jdi += diff * resp * (90 / shared_minutes if shared_minutes else 0)
+        jdi += diff * resp
 
     return jdi
 
@@ -154,10 +163,14 @@ def calculate_jdi90(actions, minutes_df, player1_id, player2_id, game_ids, playe
         minutes = minutes_df[
             (minutes_df['player_id'].isin([player1_id, player2_id])) &
             (minutes_df['game_id'] == gid)
-        ]['minutes_played'].min()
+        ]['minutes_played']
+        
+        if len(minutes) < 2:
+            continue
+
+        minutes = minutes.min()
         
         if minutes > 0:
-            print(minutes)
             total_minutes += minutes
         else:
             continue
