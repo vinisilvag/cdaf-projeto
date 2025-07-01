@@ -103,7 +103,7 @@ def get_data_by_league(league_data):
         df = pd.DataFrame(data)
 
         if index != 0:
-            df.drop(["Squad", "Pos", "Nation", "90s", "Age", "Born"], axis=1, inplace=True)
+            df.drop(["Pos", "Nation", "90s", "Age", "Born"], axis=1, inplace=True)
         
         scrapped_data.append(df)
     return scrapped_data

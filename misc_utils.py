@@ -13,6 +13,9 @@ import os
 import pandas as pd
 from webscraping import get_data_by_league
 from io_utils import save_players_merged
+from functools import reduce
+from shutil import copy
+
 
 def prepare_players_data(data_path, player_data):
     scrapped_path = os.path.join(data_path, "players_scrapped.csv")
@@ -30,17 +33,25 @@ def prepare_players_data(data_path, player_data):
             # Scrape múltiplas tabelas por liga
             dfs = get_data_by_league(league_infos)  # deve retornar lista de DataFrames
             if isinstance(dfs, list):
-                merged = reduce(lambda left, right: pd.merge(left, right, on='Player', how='inner'), dfs)
+                merged = reduce(lambda left, right: pd.merge(left, right, on=['Player', 'Squad'], how='outer'), dfs)
             else:
                 merged = dfs
             merged['League'] = league
             all_players.append(merged)
 
         enhanced_players = pd.concat(all_players, ignore_index=True)
+        
+        if not os.path.exists(data_path):
+            os.mkdir(data_path)
+            
         enhanced_players.to_csv(scrapped_path, index=False)
         print("Salvou players_scrapped.csv")
 
     print("Realizando merge final com players.json...")
+    
+    if not os.path.exists(os.path.join(data_path, 'players.json')):
+        copy('./data/players.json', data_path)
+    
     players_merged = save_players_merged(data_path)
     players_merged.to_csv(merged_path, index=False)
     print("Salvou players_merged.csv")
