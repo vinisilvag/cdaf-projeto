@@ -20,7 +20,6 @@ def get_interactions(actions, game_id, player_before, player_after):
 
     game_actions = actions[actions['game_id'] == game_id]
     filtered = game_actions[game_actions['type_name'].isin(desired_actions)]
-    # sorted_data = filtered.sort_values(by=['period_id', 'time_seconds']).reset_index(drop=True)
     
     interactions = []
     
@@ -145,12 +144,7 @@ def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id,
         
 
         resp = responsibility_share(pos1, pos2, opponent_pos)
-
-        #shared_minutes = minutes_df[
-        #    (minutes_df['player_id'].isin([player1_id, player2_id, opponent_id])) &
-        #    (minutes_df['game_id'] == game_id)
-        #]['minutes_played'].min()  # minutos em comum
-
+        
         jdi += diff * resp
 
     return jdi
